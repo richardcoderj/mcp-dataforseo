@@ -1,22 +1,25 @@
-version: 1
-name: mcp-dataforseo
-title: DataForSEO API
-description: DataForSEO API integration for SEO data
-author: skobyn
-license: MIT
-
-build:
-  dockerfile: Dockerfile
-
-config:
-  username:
-    type: string
-    title: DataForSEO Username
-    description: Your DataForSEO API username
-    required: true
-  password:
-    type: string
-    title: DataForSEO Password
-    description: Your DataForSEO API password
-    secret: true
-    required: true
+# Smithery configuration file: https://smithery.ai/docs/config
+startCommand:
+  type: stdio
+  configSchema:
+    # JSON Schema defining the configuration options for the MCP
+    type: object
+    required:
+      - username
+      - password
+    properties:
+      username:
+        type: string
+        description: Your DataForSEO API username
+      password:
+        type: string
+        description: Your DataForSEO API password
+  commandFunction: |
+    (config) => ({ 
+      command: 'node', 
+      args: ['index.js'], 
+      env: { 
+        DATAFORSEO_USERNAME: config.username,
+        DATAFORSEO_PASSWORD: config.password
+      } 
+    })
