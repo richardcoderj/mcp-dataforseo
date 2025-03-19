@@ -1,32 +1,22 @@
 version: 1
-name: '@skobyn/mcp-dataforseo'
+name: mcp-dataforseo
 title: DataForSEO API
-description: Access DataForSEO API endpoints for SEO data
+description: DataForSEO API integration for SEO data
 author: skobyn
-homepage: https://github.com/Skobyn/mcp-dataforseo
 license: MIT
 
 build:
   dockerfile: Dockerfile
 
-run:
-  environment:
-    - DATAFORSEO_USERNAME=${config.username}
-    - DATAFORSEO_PASSWORD=${config.password}
-
-schema:
-  config:
-    type: object
-    properties:
-      username:
-        type: string
-        title: DataForSEO Username
-        description: Your DataForSEO API username
-      password:
-        type: string
-        title: DataForSEO Password
-        description: Your DataForSEO API password
-        secret: true
-    required:
-      - username
-      - password
+config:
+  username:
+    type: string
+    title: DataForSEO Username
+    description: Your DataForSEO API username
+    required: true
+  password:
+    type: string
+    title: DataForSEO Password
+    description: Your DataForSEO API password
+    secret: true
+    required: true
