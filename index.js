@@ -4,6 +4,23 @@ const readline = require('readline');
 const axios = require('axios');
 const crypto = require('crypto');
 
+// Output initialization message immediately on startup
+console.log(JSON.stringify({
+  type: 'initialize',
+  status: 'ready',
+  version: '1.0.0',
+  tools: [
+    'dataforseo_serp',
+    'dataforseo_keywords_data',
+    'dataforseo_backlinks',
+    'dataforseo_onpage',
+    'dataforseo_domain_analytics',
+    'dataforseo_app_data',
+    'dataforseo_merchant',
+    'dataforseo_business_data'
+  ]
+}));
+
 // Parse the config from command line arguments
 let config = {};
 try {
@@ -53,6 +70,27 @@ rl.on('line', async (line) => {
     
     // Generate a unique ID for this request
     const requestId = crypto.randomUUID();
+    
+    // Handle initialize request
+    if (request.type === 'initialize') {
+      console.log(JSON.stringify({
+        type: 'initialize',
+        id: requestId,
+        status: 'ready',
+        version: '1.0.0',
+        tools: [
+          'dataforseo_serp',
+          'dataforseo_keywords_data',
+          'dataforseo_backlinks',
+          'dataforseo_onpage',
+          'dataforseo_domain_analytics',
+          'dataforseo_app_data',
+          'dataforseo_merchant',
+          'dataforseo_business_data'
+        ]
+      }));
+      return;
+    }
     
     // Process based on request type
     let response;
