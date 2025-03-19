@@ -15,8 +15,9 @@ COPY . .
 # Ensure the script is executable
 RUN chmod +x index.js
 
-# Set the environment variables
-ENV NODE_ENV=production
+# Set environment variables (will be overridden by run configuration)
+ENV DATAFORSEO_USERNAME=""
+ENV DATAFORSEO_PASSWORD=""
 
 # Run the MCP server
 CMD ["node", "index.js"]
