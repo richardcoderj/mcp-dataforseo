@@ -1,0 +1,209 @@
+version: 1
+name: mcp-dataforseo
+title: DataForSEO API
+description: Access DataForSEO API endpoints for SEO data
+author: skobyn
+homepage: https://github.com/Skobyn/mcp-dataforseo
+license: MIT
+
+build:
+  dockerfile: Dockerfile
+  cache:
+    - node_modules/
+
+run:
+  mounts:
+    - source: config
+      target: /app/config
+  environment:
+    - DATAFORSEO_USERNAME=
+    - DATAFORSEO_PASSWORD=
+
+schema:
+  config:
+    type: object
+    properties:
+      username:
+        type: string
+        title: DataForSEO Username
+        description: Your DataForSEO API username
+      password:
+        type: string
+        title: DataForSEO Password
+        description: Your DataForSEO API password
+        secret: true
+    required:
+      - username
+      - password
+
+tools:
+  dataforseo_serp:
+    title: Google SERP Data
+    description: Get Google search engine results for a keyword
+    parameters:
+      type: object
+      properties:
+        keyword:
+          type: string
+          title: Keyword
+          description: The search query to get results for
+        location_code:
+          type: integer
+          title: Location Code
+          description: Numeric location code (default 2840 for US)
+          default: 2840
+        language_code:
+          type: string
+          title: Language Code
+          description: Language code (default 'en')
+          default: en
+        device:
+          type: string
+          title: Device
+          description: Device type (desktop, mobile, tablet)
+          default: desktop
+        os:
+          type: string
+          title: Operating System
+          description: OS type (windows, macos, ios, android)
+          default: windows
+      required:
+        - keyword
+
+  dataforseo_keywords_data:
+    title: Keyword Data
+    description: Get search volume and related data for keywords
+    parameters:
+      type: object
+      properties:
+        keywords:
+          type: array
+          items:
+            type: string
+          title: Keywords
+          description: List of keywords to analyze
+        location_code:
+          type: integer
+          title: Location Code
+          description: Numeric location code (default 2840 for US)
+          default: 2840
+        language_code:
+          type: string
+          title: Language Code
+          description: Language code (default 'en')
+          default: en
+      required:
+        - keywords
+
+  dataforseo_backlinks:
+    title: Backlinks Data
+    description: Get backlink information for a domain
+    parameters:
+      type: object
+      properties:
+        target:
+          type: string
+          title: Target
+          description: URL or domain to get backlinks for
+        limit:
+          type: integer
+          title: Result Limit
+          description: Maximum number of results to return
+          default: 100
+      required:
+        - target
+
+  dataforseo_onpage:
+    title: On-Page Analysis
+    description: Get on-page SEO analysis for a URL
+    parameters:
+      type: object
+      properties:
+        url:
+          type: string
+          title: URL
+          description: The URL to analyze
+        check_spell:
+          type: boolean
+          title: Check Spelling
+          description: Whether to check spelling on the page
+          default: true
+        enable_javascript:
+          type: boolean
+          title: Enable JavaScript
+          description: Whether to execute JavaScript on the page
+          default: true
+      required:
+        - url
+
+  dataforseo_domain_analytics:
+    title: Domain Analytics
+    description: Get domain registration and WHOIS data
+    parameters:
+      type: object
+      properties:
+        domain:
+          type: string
+          title: Domain
+          description: The domain to analyze
+      required:
+        - domain
+
+  dataforseo_app_data:
+    title: App Data
+    description: Get information about mobile applications
+    parameters:
+      type: object
+      properties:
+        app_id:
+          type: string
+          title: App ID
+          description: The app ID to retrieve data for
+      required:
+        - app_id
+
+  dataforseo_merchant:
+    title: Merchant Data
+    description: Get product data from Google Merchant
+    parameters:
+      type: object
+      properties:
+        keyword:
+          type: string
+          title: Keyword
+          description: The search query for products
+        location_code:
+          type: integer
+          title: Location Code
+          description: Numeric location code (default 2840 for US)
+          default: 2840
+        language_code:
+          type: string
+          title: Language Code
+          description: Language code (default 'en')
+          default: en
+      required:
+        - keyword
+
+  dataforseo_business_data:
+    title: Business Data
+    description: Get Google My Business information
+    parameters:
+      type: object
+      properties:
+        keyword:
+          type: string
+          title: Keyword
+          description: The search query for business
+        location_code:
+          type: integer
+          title: Location Code
+          description: Numeric location code (default 2840 for US)
+          default: 2840
+        language_code:
+          type: string
+          title: Language Code
+          description: Language code (default 'en')
+          default: en
+      required:
+        - keyword
