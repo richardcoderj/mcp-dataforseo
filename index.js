@@ -3,6 +3,86 @@
 const readline = require('readline');
 const axios = require('axios');
 const crypto = require('crypto');
+const fs = require('fs');
+
+// Parse config options
+let config = {};
+try {
+  // Check for --config-file option
+  const configFileArg = process.argv.find(arg => arg.startsWith('--config-file'));
+  if (configFileArg) {
+    const configFilePath = configFileArg.split('=')[1] || process.argv[process.argv.indexOf(configFileArg) + 1];
+    console.error(`Reading config file: ${configFilePath}`);
+    const fileContents = fs.readFileSync(configFilePath, 'utf8');
+    config = JSON.parse(fileContents);
+    console.error(`Loaded config from file: ${configFilePath}`);
+  } 
+  // Check for direct --config JSON
+  else {
+    const configArg = process.argv.find(arg => arg.startsWith('--config'));
+    if (configArg) {
+      let configJson;
+      if (configArg.includes('=')) {
+        // Handle --config='{...}'
+        configJson = configArg.substring(configArg.indexOf('=') + 1);
+      } else {
+        // Handle --config '{...}'
+        const configIndex = process.argv.indexOf(configArg);
+        if (configIndex !== -1 && configIndex < process.argv.length - 1) {
+          configJson = process.argv[configIndex + 1];
+        }
+      }
+      
+      if (configJson) {
+        // Clean up the JSON string (handle PowerShell escaping issues)
+        configJson = configJson.replace(/^['"]|['"]$/g, ''); // Remove outer quotes if present
+        config = JSON.parse(configJson);
+        console.error('Loaded config from command line argument');
+      }
+    }
+  }
+} catch (error) {
+  console.error(`Error parsing config: ${error.message}`);
+  console.error('Config argument format should be: --config \'{"username":"user","password":"pass"}\'');
+  console.error('Or use a config file with: --config-file config.json');
+}
+
+// Configure credentials (from config or environment variables)
+const username = config.username || process.env.DATAFORSEO_USERNAME;
+const password = config.password || process.env.DATAFORSEO_PASSWORD;
+
+// Print diagnostic info to stderr (won't affect protocol)
+if (username) {
+  console.error(`Using username: ${username.substring(0, 3)}...${username.substring(username.length - 3)}`);
+} else {
+  console.error('Username not provided in config or environment variables');
+}
+if (password) {
+  console.error('Password provided (hidden)');
+} else {
+  console.error('Password not provided in config or environment variables');
+}
+
+if (!username || !password) {
+  console.error('Error: DataForSEO username and password are required');
+  console.error('Provide credentials using one of these methods:');
+  console.error('1. Environment variables: DATAFORSEO_USERNAME and DATAFORSEO_PASSWORD');
+  console.error('2. Config file: --config-file config.json');
+  console.error('3. Direct config: --config \'{"username":"user","password":"pass"}\'');
+  process.exit(1);
+}
+
+// Initialize API client with basic auth
+const apiClient = axios.create({
+  baseURL: 'https://api.dataforseo.com/v3',
+  auth: {
+    username: username,
+    password: password
+  },
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
 
 // Output initialization message immediately on startup
 console.log(JSON.stringify({
@@ -20,40 +100,6 @@ console.log(JSON.stringify({
     'dataforseo_business_data'
   ]
 }));
-
-// Parse the config from command line arguments
-let config = {};
-try {
-  const configArg = process.argv.find(arg => arg.startsWith('--config'));
-  if (configArg) {
-    const configJson = configArg.split('=')[1] || process.argv[process.argv.indexOf(configArg) + 1];
-    config = JSON.parse(configJson);
-  }
-} catch (error) {
-  console.error(`Error parsing config: ${error.message}`);
-  process.exit(1);
-}
-
-// Configure credentials (from config or environment variables)
-const username = config.username || process.env.DATAFORSEO_USERNAME;
-const password = config.password || process.env.DATAFORSEO_PASSWORD;
-
-if (!username || !password) {
-  console.error('Error: DataForSEO username and password are required in the config or as environment variables (DATAFORSEO_USERNAME, DATAFORSEO_PASSWORD)');
-  process.exit(1);
-}
-
-// Initialize API client with basic auth
-const apiClient = axios.create({
-  baseURL: 'https://api.dataforseo.com/v3',
-  auth: {
-    username: username,
-    password: password
-  },
-  headers: {
-    'Content-Type': 'application/json'
-  }
-});
 
 // Set up readline interface for stdio
 const rl = readline.createInterface({
