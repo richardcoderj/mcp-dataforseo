@@ -3,7 +3,7 @@
 const express = require('express');
 const { spawn } = require('child_process');
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 3003;
 
 app.use(express.json());
 
@@ -54,14 +54,32 @@ app.post('/', (req, res) => {
     }
     
     try {
-      // Try to parse the JSON response
-      const jsonResponse = JSON.parse(responseData.trim());
-      res.json(jsonResponse);
+      // Handle multiple JSON objects in the response
+      // Split by newlines and take the last valid JSON object
+      const jsonObjects = responseData.trim().split('\n');
+      let lastValidJson = null;
+      
+      // Try to parse each line as JSON, keep the last valid one
+      for (const jsonStr of jsonObjects) {
+        try {
+          if (jsonStr.trim()) {
+            lastValidJson = JSON.parse(jsonStr.trim());
+          }
+        } catch (err) {
+          console.error(`Error parsing JSON line: ${err.message}`);
+        }
+      }
+      
+      if (lastValidJson) {
+        res.json(lastValidJson);
+      } else {
+        throw new Error('No valid JSON found in response');
+      }
     } catch (error) {
-      console.error(`Error parsing MCP response: ${error.message}`);
+      console.error(`Error processing MCP response: ${error.message}`);
       console.error(`Raw response: ${responseData}`);
       res.status(500).send({ 
-        error: 'Failed to parse MCP response',
+        error: 'Failed to process MCP response',
         details: error.message,
         raw: responseData
       });
