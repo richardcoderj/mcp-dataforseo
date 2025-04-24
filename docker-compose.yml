@@ -15,8 +15,13 @@ services:
       - coolify
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.mcp-dataforseo.rule=Host(`p8wgskwow4cko0s80s8sccs4.193.53.40.40.sslip.io`)"
+      # Använd variabel för host-regel istället för hårdkodat värde
+      - "traefik.http.routers.mcp-dataforseo.rule=Host(`${COOLIFY_FQDN}`) && PathPrefix(`/`)"
+      - "traefik.http.routers.mcp-dataforseo.entryPoints=http,https"
       - "traefik.http.services.mcp-dataforseo.loadbalancer.server.port=3003"
+      # Lägg till middleware för gzip-komprimering
+      - "traefik.http.middlewares.mcp-gzip.compress=true"
+      - "traefik.http.routers.mcp-dataforseo.middlewares=mcp-gzip"
 
 networks:
   coolify:
