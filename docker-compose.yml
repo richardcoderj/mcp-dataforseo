@@ -1,0 +1,23 @@
+version: '3'
+
+services:
+  app:
+    build: .
+    container_name: mcp-dataforseo
+    environment:
+      - DATAFORSEO_USERNAME=${DATAFORSEO_USERNAME}
+      - DATAFORSEO_PASSWORD=${DATAFORSEO_PASSWORD}
+      - PORT=3003
+    ports:
+      - "3003:3003"
+    networks:
+      - default
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mcp-dataforseo.rule=Host(`p8wgskwow4cko0s80s8sccs4.193.53.40.40.sslip.io`)"
+      - "traefik.http.services.mcp-dataforseo.loadbalancer.server.port=3003"
+
+networks:
+  coolify:
+    external: true
