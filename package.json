@@ -7,7 +7,8 @@
     "mcp-dataforseo": "./index.js"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node http-adapter.js"
   },
   "keywords": [
     "mcp",
@@ -19,6 +20,7 @@
   "author": "skobyn",
   "license": "MIT",
   "dependencies": {
-    "axios": "^1.6.2"
+    "axios": "^1.6.2",
+    "express": "^4.18.2"
   }
 }
