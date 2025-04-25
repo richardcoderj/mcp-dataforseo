@@ -108,17 +108,61 @@ function handleMcpRequest(req, res) {
   mcpServer.stdin.end();
 }
 
-// Prevent 404 error from Copilot SSE client
+// SSE endpoint implementation
 app.get('/sse', (req, res) => {
-  res.status(204).end(); // No content – we don't support SSE, but we avoid a 404
+  console.log('SSE connection requested');
+  
+  // Set headers for SSE
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive'
+  });
+  
+  // Send an initial message to establish the connection
+  res.write('data: {"type":"connection_established"}\n\n');
+  
+  // Keep the connection alive with a heartbeat
+  const heartbeatInterval = setInterval(() => {
+    res.write('data: {"type":"heartbeat"}\n\n');
+  }, 15000); // Send heartbeat every 15 seconds
+  
+  // Clean up when client disconnects
+  req.on('close', () => {
+    console.log('SSE connection closed');
+    clearInterval(heartbeatInterval);
+  });
+});
+
+// Handle requests to /v1/chat/completions endpoint (OpenAI compatibility mode)
+app.post('/v1/chat/completions', (req, res) => {
+  console.log('Received OpenAI compatibility request');
+  res.status(200).json({
+    id: "mcp-dataforseo-" + Date.now(),
+    object: "chat.completion",
+    created: Math.floor(Date.now() / 1000),
+    model: "dataforseo-mcp",
+    choices: [
+      {
+        index: 0,
+        message: {
+          role: "assistant",
+          content: "This endpoint is for OpenAI compatibility mode. Please use the MCP protocol endpoints for DataForSEO functionality."
+        },
+        finish_reason: "stop"
+      }
+    ]
+  });
 });
 
 // Catch-all handler for other routes to avoid 404s
 app.use((req, res) => {
+  console.log(`Received request to unhandled route: ${req.method} ${req.path}`);
   res.status(200).json({
     name: "DataForSEO MCP Server",
     version: "1.0.0",
-    status: "available"
+    status: "available",
+    endpoints: ["/", "/mcp", "/sse", "/health", "/ping"]
   });
 });
 
