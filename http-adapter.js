@@ -35,6 +35,7 @@ app.get('/', (req, res) => {
     name: "DataForSEO MCP Server",
     version: "1.0.0",
     description: "Model Context Protocol server for DataForSEO API",
+    serverName: "dataforseo", // Explicit server name för Windsurf
     endpoints: ["/", "/mcp", "/sse", "/api/metadata"]
   });
 });
@@ -302,6 +303,7 @@ app.get('/metadata', (req, res) => {
     name: "DataForSEO MCP Server",
     version: "1.0.0",
     description: "Model Context Protocol server for DataForSEO API",
+    serverName: "dataforseo", // Explicit server name för Windsurf
     tools: [
       "dataforseo_serp",
       "dataforseo_keywords_data", 
