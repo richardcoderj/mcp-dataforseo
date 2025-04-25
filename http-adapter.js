@@ -91,6 +91,11 @@ app.post('/', (req, res) => {
   mcpServer.stdin.end();
 });
 
+// Prevent 404 error from Copilot SSE client
+app.get('/sse', (req, res) => {
+  res.status(204).end(); // No content – we don't support SSE, but we avoid a 404
+});
+
 // Start the server
 app.listen(port, '0.0.0.0', () => {
   console.log(`HTTP adapter listening on port ${port}`);
