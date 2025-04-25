@@ -6,6 +6,9 @@ const cors = require('cors');
 const app = express();
 const port = process.env.PORT || 3003;
 
+// Förbättrad timeout-hantering
+const SERVER_TIMEOUT = 30 * 60 * 1000; // 30 minuter
+
 // Enable CORS for all routes with permissive settings
 app.use(cors({
   origin: '*',
@@ -15,17 +18,26 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Increase server timeout limits
+// Öka timeout-gränserna för alla anslutningar
 app.use((req, res, next) => {
-  // Ökade timeout-värden för alla anslutningar
-  req.socket.setTimeout(3600000); // 1 timme
-  res.socket.setTimeout(3600000); // 1 timme
+  req.setTimeout(SERVER_TIMEOUT);
+  res.setTimeout(SERVER_TIMEOUT);
   next();
 });
 
 // Log diagnostic information
 console.log(`HTTP adapter starting on port ${port}`);
 console.log('DataForSEO MCP HTTP Adapter ready');
+
+// Enkel MCP-metadata-endpunkt som vissa klienter anropar först
+app.get('/', (req, res) => {
+  res.json({
+    name: "DataForSEO MCP Server",
+    version: "1.0.0",
+    description: "Model Context Protocol server for DataForSEO API",
+    endpoints: ["/", "/mcp", "/sse", "/api/metadata"]
+  });
+});
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -37,65 +49,111 @@ app.get('/ping', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
-// SSE implementation with robust reconnection support
+// Explicit WindSurf-kompatibel initiering
+app.post('/initialize', (req, res) => {
+  res.json({
+    type: "initialize_response",
+    status: "ready",
+    version: "1.0.0",
+    tools: [
+      {
+        name: "dataforseo_serp",
+        description: "Search Engine Results Page data from DataForSEO"
+      },
+      {
+        name: "dataforseo_keywords_data",
+        description: "Keyword search volume and metrics"
+      },
+      {
+        name: "dataforseo_backlinks",
+        description: "Backlink data for websites"
+      },
+      {
+        name: "dataforseo_onpage",
+        description: "On-page SEO analysis"
+      }
+    ]
+  });
+});
+
+// Ny endpoints för listning av verktyg
+app.post('/tools/list', (req, res) => {
+  res.json({
+    type: "tools/list_response",
+    tools: [
+      {
+        name: "dataforseo_serp",
+        description: "Search Engine Results Page data from DataForSEO"
+      },
+      {
+        name: "dataforseo_keywords_data",
+        description: "Keyword search volume and metrics"
+      },
+      {
+        name: "dataforseo_backlinks",
+        description: "Backlink data for websites"
+      },
+      {
+        name: "dataforseo_onpage",
+        description: "On-page SEO analysis"
+      }
+    ]
+  });
+});
+
+// Förbättrad SSE implementation
 app.get('/sse', (req, res) => {
   console.log('SSE connection requested');
+  console.log('Headers:', JSON.stringify(req.headers));
   
-  // Set SSE-specific headers
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache, no-transform');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('X-Accel-Buffering', 'no'); // Förhindra buffring i proxys
+  // Sätt korrekta headers för SSE
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+    'Access-Control-Allow-Origin': '*'
+  });
   
-  // Sätt timeout för anslutningen till ett högt värde
-  req.socket.setTimeout(0); // Ingen timeout
-  res.socket.setTimeout(0); // Ingen timeout
+  // Skicka standardevents för att etablera anslutningen
+  res.write('event: open\ndata: connected\n\n');
   
-  // Send initial message immediately
-  res.write('id: ' + Date.now() + '\n');
-  res.write('retry: 10000\n'); // Klienterna bör försöka återansluta efter 10 sekunder vid frånkoppling
-  res.write('data: {"type":"initialize","status":"ready","version":"1.0.0","tools":["dataforseo_serp","dataforseo_keywords_data","dataforseo_backlinks","dataforseo_onpage","dataforseo_domain_analytics","dataforseo_app_data","dataforseo_merchant","dataforseo_business_data"]}\n\n');
+  // Skicka initialiseringsevents 
+  res.write(`data: {"type":"initialize","status":"ready","version":"1.0.0","tools":[
+    "dataforseo_serp",
+    "dataforseo_keywords_data",
+    "dataforseo_backlinks",
+    "dataforseo_onpage",
+    "dataforseo_domain_analytics",
+    "dataforseo_app_data",
+    "dataforseo_merchant",
+    "dataforseo_business_data"
+  ]}\n\n`);
   
-  // Mer frekventa heartbeats för att hålla anslutningen aktiv
+  // Mer frekventa heartbeats
   const heartbeatInterval = setInterval(() => {
-    if (!res.writableEnded) {
-      try {
-        res.write('id: ' + Date.now() + '\n');
-        res.write('data: {"type":"heartbeat","time":' + Date.now() + '}\n\n');
-        // Flush data för att säkerställa att den skickas direkt
-        if (typeof res.flush === 'function') {
-          res.flush();
-        }
-      } catch (e) {
-        console.error('Error sending heartbeat:', e);
-        clearInterval(heartbeatInterval);
-      }
-    } else {
+    try {
+      res.write(`event: ping\ndata: {"time":${Date.now()}}\n\n`);
+    } catch (e) {
+      console.error('Error sending heartbeat:', e);
       clearInterval(heartbeatInterval);
     }
-  }, 2000); // Skicka heartbeat var 2:a sekund
+  }, 2000);
   
-  // Close connection when client disconnects
   req.on('close', () => {
-    clearInterval(heartbeatInterval);
-    console.log('SSE connection closed');
-  });
-
-  // Handle potential errors
-  req.on('error', (err) => {
-    console.error('SSE request error:', err);
+    console.log('SSE connection closed by client');
     clearInterval(heartbeatInterval);
   });
-
+  
   res.on('error', (err) => {
     console.error('SSE response error:', err);
     clearInterval(heartbeatInterval);
   });
 });
 
-// Alternative SSE endpoints
+// Alternative SSE endpoint
 app.get('/api/sse', (req, res) => {
+  console.log('API SSE endpoint requested');
   return app.get('/sse')(req, res);
 });
 
@@ -103,6 +161,57 @@ app.get('/api/sse', (req, res) => {
 function handleMcpRequest(req, res) {
   console.log(`Received MCP request: ${req.method} ${req.path}`);
   console.log(`Request body: ${JSON.stringify(req.body)}`);
+  
+  // Specialhantering för initialize-anrop
+  if (req.body && req.body.type === "initialize") {
+    return res.json({
+      type: "initialize_response",
+      status: "ready",
+      tools: [
+        {
+          name: "dataforseo_serp",
+          description: "Search Engine Results Page data from DataForSEO"
+        },
+        {
+          name: "dataforseo_keywords_data",
+          description: "Keyword search volume and metrics"
+        },
+        {
+          name: "dataforseo_backlinks",
+          description: "Backlink data for websites"
+        },
+        {
+          name: "dataforseo_onpage",
+          description: "On-page SEO analysis"
+        }
+      ]
+    });
+  }
+  
+  // Specialhantering för listTools-anrop
+  if (req.body && req.body.method === "tools/list") {
+    return res.json({
+      type: "tools/list_response",
+      tools: [
+        {
+          name: "dataforseo_serp",
+          description: "Search Engine Results Page data from DataForSEO"
+        },
+        {
+          name: "dataforseo_keywords_data",
+          description: "Keyword search volume and metrics"
+        },
+        {
+          name: "dataforseo_backlinks",
+          description: "Backlink data for websites"
+        },
+        {
+          name: "dataforseo_onpage",
+          description: "On-page SEO analysis"
+        }
+      ]
+    });
+  }
   
   // Spawn the MCP server as a child process
   const mcpServer = spawn('node', ['index.js'], {
@@ -184,6 +293,9 @@ app.post('/', handleMcpRequest);
 // Support standard MCP endpoint patterns
 app.post('/api/mcp', handleMcpRequest);
 
+// Specific endpoint för Windsurf
+app.post('/v1/completions', handleMcpRequest);
+
 // Basic metadata endpoint
 app.get('/metadata', (req, res) => {
   res.json({
@@ -192,7 +304,7 @@ app.get('/metadata', (req, res) => {
     description: "Model Context Protocol server for DataForSEO API",
     tools: [
       "dataforseo_serp",
-      "dataforseo_keywords_data",
+      "dataforseo_keywords_data", 
       "dataforseo_backlinks",
       "dataforseo_onpage",
       "dataforseo_domain_analytics",
