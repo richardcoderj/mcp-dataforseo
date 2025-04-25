@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSE Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #status {
+            padding: 10px;
+            margin: 10px 0;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+        }
+        #messages {
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-top: 20px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .connected {
+            background-color: #d4edda !important;
+            color: #155724;
+        }
+        .disconnected {
+            background-color: #f8d7da !important;
+            color: #721c24;
+        }
+        .message {
+            margin-bottom: 5px;
+            padding: 5px;
+            background-color: #f8f9fa;
+            border-left: 3px solid #007bff;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            margin-top: 10px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            margin-top: 10px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #0069d9;
+        }
+    </style>
+</head>
+<body>
+    <h1>SSE Connection Test</h1>
+    
+    <div id="status" class="disconnected">Status: Disconnected</div>
+    
+    <div>
+        <input type="text" id="sseUrl" value="https://cy-dataforseo.hopto.org/sse" placeholder="SSE URL">
+        <button onclick="connectSSE()">Connect</button>
+        <button onclick="disconnect()">Disconnect</button>
+    </div>
+    
+    <div id="messages"></div>
+    
+    <script>
+        let eventSource = null;
+        const messagesEl = document.getElementById('messages');
+        const statusEl = document.getElementById('status');
+        
+        function connectSSE() {
+            // Disconnect if already connected
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+            
+            const url = document.getElementById('sseUrl').value;
+            try {
+                // Create new EventSource
+                eventSource = new EventSource(url);
+                
+                // Connection opened
+                eventSource.onopen = function(e) {
+                    updateStatus('Connected');
+                    logMessage('Connection established');
+                };
+                
+                // Connection error
+                eventSource.onerror = function(e) {
+                    updateStatus('Error: Connection failed');
+                    logMessage('Error: ' + JSON.stringify(e));
+                    eventSource.close();
+                };
+                
+                // Handle messages
+                eventSource.onmessage = function(e) {
+                    logMessage('Message: ' + e.data);
+                    try {
+                        const data = JSON.parse(e.data);
+                        logMessage('Parsed: ' + JSON.stringify(data, null, 2));
+                    } catch (err) {
+                        logMessage('Not JSON: ' + e.data);
+                    }
+                };
+                
+                // Handle specific event types
+                eventSource.addEventListener('open', function(e) {
+                    logMessage('Open event: ' + e.data);
+                });
+                
+                eventSource.addEventListener('ping', function(e) {
+                    logMessage('Ping event: ' + e.data);
+                });
+            } catch (err) {
+                updateStatus('Error creating connection: ' + err.message);
+                logMessage('Connection error: ' + err.message);
+            }
+        }
+        
+        function disconnect() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+                updateStatus('Disconnected');
+                logMessage('Connection closed manually');
+            }
+        }
+        
+        function updateStatus(message) {
+            statusEl.textContent = 'Status: ' + message;
+            if (message.includes('Connected')) {
+                statusEl.className = 'connected';
+            } else {
+                statusEl.className = 'disconnected';
+            }
+        }
+        
+        function logMessage(message) {
+            const timestamp = new Date().toISOString();
+            const entry = document.createElement('div');
+            entry.className = 'message';
+            entry.textContent = `[${timestamp}] ${message}`;
+            messagesEl.appendChild(entry);
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+        
+        // Clean up when page is unloaded
+        window.addEventListener('beforeunload', function() {
+            if (eventSource) {
+                eventSource.close();
+            }
+        });
+    </script>
+</body>
+</html>

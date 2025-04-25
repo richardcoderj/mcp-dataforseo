@@ -15,20 +15,27 @@ services:
       - coolify
     labels:
       - "traefik.enable=true"
-      # Använd variabel för host-regel istället för hårdkodat värde
-      - "traefik.http.routers.mcp-dataforseo.rule=Host(`${COOLIFY_FQDN}`) && PathPrefix(`/`)"
+      # Förbättrad host-regel
+      - "traefik.http.routers.mcp-dataforseo.rule=Host(`${COOLIFY_FQDN}`)"
       - "traefik.http.routers.mcp-dataforseo.entryPoints=http,https"
       - "traefik.http.services.mcp-dataforseo.loadbalancer.server.port=3003"
-      # Lägg till middleware för gzip-komprimering
-      - "traefik.http.middlewares.mcp-gzip.compress=true"
-      # Lägg till middleware för timeout-konfigurationer
+      
+      # Timeout-konfigurationer för långvariga anslutningar
       - "traefik.http.middlewares.mcp-timeout.forwardingTimeouts.idleTimeout=3600"
       - "traefik.http.middlewares.mcp-timeout.forwardingTimeouts.responseTimeout=3600"
-      # Applicera både gzip och timeout middlewares
-      - "traefik.http.routers.mcp-dataforseo.middlewares=mcp-gzip,mcp-timeout"
-      # SSE-specifik konfiguration
-      - "traefik.http.middlewares.mcp-sse-buffer.buffering.maxRequestBodyBytes=10485760"
-      - "traefik.http.middlewares.mcp-sse-buffer.buffering.memResponseBodyBytes=2097152"
+      
+      # SSE-specifika headers
+      - "traefik.http.middlewares.sse-headers.headers.customResponseHeaders.Cache-Control=no-cache,no-transform"
+      - "traefik.http.middlewares.sse-headers.headers.customResponseHeaders.Connection=keep-alive"
+      - "traefik.http.middlewares.sse-headers.headers.customResponseHeaders.X-Accel-Buffering=no"
+      
+      # Hälsokontrollkonfiguration för bättre tillgänglighet
+      - "traefik.http.services.mcp-dataforseo.loadbalancer.healthCheck.path=/health"
+      - "traefik.http.services.mcp-dataforseo.loadbalancer.healthCheck.interval=10s"
+      - "traefik.http.services.mcp-dataforseo.loadbalancer.healthCheck.timeout=5s"
+      
+      # Kombinera alla middlewares
+      - "traefik.http.routers.mcp-dataforseo.middlewares=mcp-timeout,sse-headers"
 
 networks:
   coolify:
