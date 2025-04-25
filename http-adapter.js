@@ -7,8 +7,15 @@ const app = express();
 const port = process.env.PORT || 3003;
 
 // Enable CORS for all routes
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
+
+// Store SSE clients
+const clients = new Set();
 
 // Log diagnostic information
 console.log(`HTTP adapter starting on port ${port}`);
@@ -29,13 +36,15 @@ app.options('*', cors());
 
 // Primary MCP endpoint
 app.post('/mcp', handleMcpRequest);
+app.post('/api/mcp', handleMcpRequest); // Some clients use this path
 
 // Also support root endpoint for backward compatibility
 app.post('/', handleMcpRequest);
 
 // Handle MCP requests
 function handleMcpRequest(req, res) {
-  console.log(`Received request: ${JSON.stringify(req.body)}`);
+  console.log(`Received MCP request: ${req.method} ${req.path}`);
+  console.log(`Request body: ${JSON.stringify(req.body)}`);
   
   // Spawn the MCP server as a child process
   const mcpServer = spawn('node', ['index.js'], {
@@ -88,6 +97,19 @@ function handleMcpRequest(req, res) {
       }
       
       if (lastValidJson) {
+        // Send to all SSE clients if it's a streaming response
+        if (lastValidJson.type === 'streaming' && lastValidJson.content) {
+          const sseMessage = {
+            type: 'streaming',
+            id: lastValidJson.id || '',
+            content: lastValidJson.content
+          };
+          
+          clients.forEach(client => {
+            client.write(`data: ${JSON.stringify(sseMessage)}\n\n`);
+          });
+        }
+        
         res.json(lastValidJson);
       } else {
         throw new Error('No valid JSON found in response');
@@ -108,7 +130,7 @@ function handleMcpRequest(req, res) {
   mcpServer.stdin.end();
 }
 
-// SSE endpoint implementation
+// SSE endpoint implementation for Windsurf
 app.get('/sse', (req, res) => {
   console.log('SSE connection requested');
   
@@ -116,43 +138,122 @@ app.get('/sse', (req, res) => {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive'
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*'
   });
   
   // Send an initial message to establish the connection
-  res.write('data: {"type":"connection_established"}\n\n');
+  res.write('event: open\ndata: connected\n\n');
+  
+  // Send info about DataForSEO tools
+  const toolsInfo = {
+    type: 'tools',
+    tools: [
+      {
+        name: 'dataforseo_serp',
+        description: 'Search Engine Results Page data from DataForSEO'
+      },
+      {
+        name: 'dataforseo_keywords_data',
+        description: 'Keyword search volume and metrics'
+      },
+      {
+        name: 'dataforseo_backlinks',
+        description: 'Backlink data for websites'
+      },
+      {
+        name: 'dataforseo_onpage',
+        description: 'On-page SEO analysis'
+      },
+      {
+        name: 'dataforseo_domain_analytics',
+        description: 'Domain analysis and metrics'
+      },
+      {
+        name: 'dataforseo_app_data',
+        description: 'App store data and metrics'
+      },
+      {
+        name: 'dataforseo_merchant',
+        description: 'E-commerce and merchant data'
+      },
+      {
+        name: 'dataforseo_business_data',
+        description: 'Business and local listings data'
+      }
+    ]
+  };
+  
+  res.write(`data: ${JSON.stringify(toolsInfo)}\n\n`);
   
   // Keep the connection alive with a heartbeat
   const heartbeatInterval = setInterval(() => {
-    res.write('data: {"type":"heartbeat"}\n\n');
-  }, 15000); // Send heartbeat every 15 seconds
+    if (res.writableEnded) {
+      clearInterval(heartbeatInterval);
+      return;
+    }
+    res.write('event: ping\ndata: {"time": ' + Date.now() + '}\n\n');
+  }, 10000); // Send heartbeat every 10 seconds
+  
+  // Store client for broadcasting
+  clients.add(res);
   
   // Clean up when client disconnects
   req.on('close', () => {
     console.log('SSE connection closed');
     clearInterval(heartbeatInterval);
+    clients.delete(res);
   });
+});
+
+// Alternative SSE endpoint
+app.get('/api/sse', (req, res) => {
+  console.log('Alternative SSE connection requested');
+  // Just redirect to the standard SSE handler
+  return app.get('/sse')(req, res);
 });
 
 // Handle requests to /v1/chat/completions endpoint (OpenAI compatibility mode)
 app.post('/v1/chat/completions', (req, res) => {
   console.log('Received OpenAI compatibility request');
-  res.status(200).json({
-    id: "mcp-dataforseo-" + Date.now(),
-    object: "chat.completion",
-    created: Math.floor(Date.now() / 1000),
-    model: "dataforseo-mcp",
-    choices: [
-      {
-        index: 0,
-        message: {
-          role: "assistant",
-          content: "This endpoint is for OpenAI compatibility mode. Please use the MCP protocol endpoints for DataForSEO functionality."
-        },
-        finish_reason: "stop"
-      }
+  // Forward to MCP handler with proper format translation
+  req.body = {
+    type: "initialize",
+    id: "openai-" + Date.now()
+  };
+  return handleMcpRequest(req, res);
+});
+
+// MCP metadata endpoint
+app.get('/api/metadata', (req, res) => {
+  console.log('Metadata requested');
+  res.json({
+    name: "DataForSEO MCP Server",
+    version: "1.0.0",
+    description: "Model Context Protocol server for DataForSEO API",
+    vendor: "DataForSEO",
+    capabilities: {
+      streaming: true,
+      sse: true
+    },
+    tools: [
+      "dataforseo_serp",
+      "dataforseo_keywords_data",
+      "dataforseo_backlinks",
+      "dataforseo_onpage",
+      "dataforseo_domain_analytics",
+      "dataforseo_app_data",
+      "dataforseo_merchant",
+      "dataforseo_business_data"
     ]
   });
+});
+
+// Metadata endpoint
+app.get('/metadata', (req, res) => {
+  console.log('Metadata requested (alt endpoint)');
+  // redirect to the standard metadata handler
+  return app.get('/api/metadata')(req, res);
 });
 
 // Catch-all handler for other routes to avoid 404s
@@ -162,7 +263,7 @@ app.use((req, res) => {
     name: "DataForSEO MCP Server",
     version: "1.0.0",
     status: "available",
-    endpoints: ["/", "/mcp", "/sse", "/health", "/ping"]
+    endpoints: ["/", "/mcp", "/sse", "/api/sse", "/health", "/ping", "/api/metadata", "/metadata"]
   });
 });
 
