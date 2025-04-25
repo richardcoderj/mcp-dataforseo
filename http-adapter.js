@@ -2,9 +2,12 @@
 
 const express = require('express');
 const { spawn } = require('child_process');
+const cors = require('cors');
 const app = express();
 const port = process.env.PORT || 3003;
 
+// Enable CORS for all routes
+app.use(cors());
 app.use(express.json());
 
 // Log diagnostic information
@@ -16,8 +19,22 @@ app.get('/health', (req, res) => {
   res.status(200).send('OK');
 });
 
-// Handle all POST requests as MCP requests
-app.post('/', (req, res) => {
+// Ping endpoint for MCP clients
+app.get('/ping', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
+// Handle OPTIONS requests for CORS preflight
+app.options('*', cors());
+
+// Primary MCP endpoint
+app.post('/mcp', handleMcpRequest);
+
+// Also support root endpoint for backward compatibility
+app.post('/', handleMcpRequest);
+
+// Handle MCP requests
+function handleMcpRequest(req, res) {
   console.log(`Received request: ${JSON.stringify(req.body)}`);
   
   // Spawn the MCP server as a child process
@@ -89,11 +106,20 @@ app.post('/', (req, res) => {
   // Send the request to the MCP server
   mcpServer.stdin.write(JSON.stringify(req.body) + '\n');
   mcpServer.stdin.end();
-});
+}
 
 // Prevent 404 error from Copilot SSE client
 app.get('/sse', (req, res) => {
   res.status(204).end(); // No content – we don't support SSE, but we avoid a 404
+});
+
+// Catch-all handler for other routes to avoid 404s
+app.use((req, res) => {
+  res.status(200).json({
+    name: "DataForSEO MCP Server",
+    version: "1.0.0",
+    status: "available"
+  });
 });
 
 // Start the server
