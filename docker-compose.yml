@@ -21,7 +21,14 @@ services:
       - "traefik.http.services.mcp-dataforseo.loadbalancer.server.port=3003"
       # Lägg till middleware för gzip-komprimering
       - "traefik.http.middlewares.mcp-gzip.compress=true"
-      - "traefik.http.routers.mcp-dataforseo.middlewares=mcp-gzip"
+      # Lägg till middleware för timeout-konfigurationer
+      - "traefik.http.middlewares.mcp-timeout.forwardingTimeouts.idleTimeout=3600"
+      - "traefik.http.middlewares.mcp-timeout.forwardingTimeouts.responseTimeout=3600"
+      # Applicera både gzip och timeout middlewares
+      - "traefik.http.routers.mcp-dataforseo.middlewares=mcp-gzip,mcp-timeout"
+      # SSE-specifik konfiguration
+      - "traefik.http.middlewares.mcp-sse-buffer.buffering.maxRequestBodyBytes=10485760"
+      - "traefik.http.middlewares.mcp-sse-buffer.buffering.memResponseBodyBytes=2097152"
 
 networks:
   coolify:

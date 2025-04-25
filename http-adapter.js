@@ -6,13 +6,22 @@ const cors = require('cors');
 const app = express();
 const port = process.env.PORT || 3003;
 
-// Enable CORS for all routes
+// Enable CORS for all routes with permissive settings
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
 }));
 app.use(express.json());
+
+// Increase server timeout limits
+app.use((req, res, next) => {
+  // Ökade timeout-värden för alla anslutningar
+  req.socket.setTimeout(3600000); // 1 timme
+  res.socket.setTimeout(3600000); // 1 timme
+  next();
+});
 
 // Log diagnostic information
 console.log(`HTTP adapter starting on port ${port}`);
@@ -28,32 +37,64 @@ app.get('/ping', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
-// Very simple SSE implementation for Windsurf
+// SSE implementation with robust reconnection support
 app.get('/sse', (req, res) => {
   console.log('SSE connection requested');
   
-  // Set headers for SSE
+  // Set SSE-specific headers
   res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('X-Accel-Buffering', 'no'); // Förhindra buffring i proxys
   
-  // Send initial message
+  // Sätt timeout för anslutningen till ett högt värde
+  req.socket.setTimeout(0); // Ingen timeout
+  res.socket.setTimeout(0); // Ingen timeout
+  
+  // Send initial message immediately
+  res.write('id: ' + Date.now() + '\n');
+  res.write('retry: 10000\n'); // Klienterna bör försöka återansluta efter 10 sekunder vid frånkoppling
   res.write('data: {"type":"initialize","status":"ready","version":"1.0.0","tools":["dataforseo_serp","dataforseo_keywords_data","dataforseo_backlinks","dataforseo_onpage","dataforseo_domain_analytics","dataforseo_app_data","dataforseo_merchant","dataforseo_business_data"]}\n\n');
   
-  // Keep connection alive with heartbeats
-  const intervalId = setInterval(() => {
-    res.write('data: {"type":"heartbeat"}\n\n');
-  }, 5000);
+  // Mer frekventa heartbeats för att hålla anslutningen aktiv
+  const heartbeatInterval = setInterval(() => {
+    if (!res.writableEnded) {
+      try {
+        res.write('id: ' + Date.now() + '\n');
+        res.write('data: {"type":"heartbeat","time":' + Date.now() + '}\n\n');
+        // Flush data för att säkerställa att den skickas direkt
+        if (typeof res.flush === 'function') {
+          res.flush();
+        }
+      } catch (e) {
+        console.error('Error sending heartbeat:', e);
+        clearInterval(heartbeatInterval);
+      }
+    } else {
+      clearInterval(heartbeatInterval);
+    }
+  }, 2000); // Skicka heartbeat var 2:a sekund
   
   // Close connection when client disconnects
   req.on('close', () => {
-    clearInterval(intervalId);
+    clearInterval(heartbeatInterval);
     console.log('SSE connection closed');
+  });
+
+  // Handle potential errors
+  req.on('error', (err) => {
+    console.error('SSE request error:', err);
+    clearInterval(heartbeatInterval);
+  });
+
+  res.on('error', (err) => {
+    console.error('SSE response error:', err);
+    clearInterval(heartbeatInterval);
   });
 });
 
-// Alternative SSE endpoint
+// Alternative SSE endpoints
 app.get('/api/sse', (req, res) => {
   return app.get('/sse')(req, res);
 });
