@@ -9,6 +9,13 @@ const port = process.env.PORT || 3003;
 // Förbättrad timeout-hantering
 const SERVER_TIMEOUT = 30 * 60 * 1000; // 30 minuter
 
+// Helper function to detect Windsurf clients
+function isWindsurfClient(req) {
+  return req.headers['user-agent']?.includes('Windsurf') || 
+         req.headers['x-windsurf-client'] === 'true' ||
+         req.query?.client === 'windsurf';
+}
+
 // Enable CORS for all routes with permissive settings
 app.use(cors({
   origin: '*',
