@@ -96,8 +96,8 @@ Then configure Windsurf to start the Docker container by adding the following to
   "mcpServers": {
     "dataforseo": {
       "command": "docker",
-      "args": ["run", "--rm", "-i", "--env-file", "/absolute/path/to/.env", "mcp-dataforseo"],
-      "env": {}
+      "args": ["run", "--rm", "-i", "-p", "3003:3003", "--env-file", "/absolute/path/to/.env", "mcp-dataforseo"],
+      docker-compose down      "env": {}
     }
   }
 }
@@ -110,6 +110,7 @@ Replace `/absolute/path/to/.env` with the absolute path to your .env file, for e
 The `docker run` command specifies:
 - `--rm`: Remove container after it stops
 - `-i`: Interactive mode (necessary for stdin/stdout)
+- `-p`: Port mapping to expose container's port 3003 to host port 3003 (CRITICAL for Windsurf connectivity)
 - `--env-file`: Load environment variables from the specified file
 - `mcp-dataforseo`: The name of your locally built image
 
@@ -122,7 +123,7 @@ If you prefer to keep credentials in the Windsurf config (less recommended), you
   "mcpServers": {
     "dataforseo": {
       "command": "docker",
-      "args": ["run", "--rm", "-i", "-e", "DATAFORSEO_USERNAME=your_username", "-e", "DATAFORSEO_PASSWORD=your_password", "mcp-dataforseo"],
+      "args": ["run", "--rm", "-i", "-p", "3003:3003", "-e", "DATAFORSEO_USERNAME=your_username", "-e", "DATAFORSEO_PASSWORD=your_password", "mcp-dataforseo"],
       "env": {}
     }
   }
@@ -394,3 +395,4 @@ To publish this package to npm:
    npm version patch
    npm publish
    ```
+````
